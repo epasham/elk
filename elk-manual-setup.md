@@ -251,3 +251,107 @@ sudo systemctl restart kibana.service
 ````
 
 ### 4. 安装logstash
+4.1 安装logstash rpm包
+````
+ELK_VERSION=6.2.2
+LG_PKG_URL="https://artifacts.elastic.co/downloads/logstash/logstash-${ELK_VERSION}.rpm"
+sudo rpm --install ${LG_PKG_URL}
+
+````
+4.2 在/etc/logstash/conf.d下提供beat-input.conf配置文件
+````
+input {
+  beats {
+    port => 5044
+    ssl => true
+    ssl_certificate => "/etc/logstash/certs/es_http.pem"
+    ssl_key => "/etc/logstash/certs/es_http-pk8.key"
+    ssl_certificate_authorities => "/etc/logstash/certs/root-ca.pem"
+    ssl_verify_mode => none
+  }
+}
+
+filter {
+  if "hana-srv" in [tags] {
+    grok {
+      match => { "message" => "%{TIMESTAMP_ISO8601:HANAtimestamp}\s%{WORD:LOGLEVEL}\s%{WORD:ACTION}\s+%{GREEDYDATA:CONTENT}" }
+    }
+  }
+
+  if "hana-available" in [tags] {
+    grok {
+      match => { "message" => "%{WORD:HANASTATUS}\s+%{DATESTAMP:CHANGETIME}\s-\s%{DATESTAMP}" }
+    }
+  }
+}
+
+output {
+  if "hana-srv" in [tags] {
+    elasticsearch {
+      hosts => ["10.180.1.83:9200", "10.180.1.84:9200", "10.180.1.85:9200"]
+      user => admin
+      password => admin
+      ssl => true
+      ssl_certificate_verification => true
+      cacert => "/etc/logstash/certs/root-ca.pem"
+      manage_template => false
+      index => "filebeat-6.2.2-hana-services-%{+YYYY.MM.dd}"
+    }
+  }
+
+  if "hana-available" in [tags] {
+    elasticsearch {
+      hosts => ["10.180.1.83:9200", "10.180.1.84:9200", "10.180.1.85:9200"]
+      user => admin
+      password => admin
+      ssl => true
+      ssl_certificate_verification => true
+      cacert => "/etc/logstash/certs/root-ca.pem"
+      manage_template => false
+      index => "filebeat-6.2.2-hana-available-%{+YYYY.MM.dd}"
+    }
+  }
+}
+````
+2台logstash使用相同配置
+
+4.3 启动logstash
+````
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable logstash.service
+sudo systemctl restart logstash.service
+````
+*NOTE* :日志解析表达式编写：http://grokdebug.herokuapp.com/
+
+### 5 filebeat安装
+5.1 filebeat rpm包安装，采集hana日志
+````
+ELK_VERSION=6.2.2
+FB_PKG_URL=https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-${ELK_VERSION}-x86_64.rpm
+sudo rpm --install ${FB_PKG_URL}
+````
+5.2 es启用filebeat的template
+
+filebeat通过logstash输入解析日志到es,需要在es启用filebeat的template, shards需要在此时指定，index生成后不能再修改shards，除非所有数据reshared
+````
+ES_API_URL="https://10.180.1.83:9200"
+SG_ES_USERNAME="admin"
+SG_ES_PASSWORD="admin"
+FB_TMPL_SHARDS=6
+FB_TMPL_REPLICAS=2
+FB_TMPL_ROUT_SHARDS=36
+
+sudo filebeat setup --template \
+-E output.logstash.enabled=false \
+-E output.elasticsearch.hosts=["${ES_API_URL}"] \
+-E output.elasticsearch.protocol="https" \
+-E output.elasticsearch.username=${SG_ES_USERNAME} \
+-E output.elasticsearch.password=${SG_ES_PASSWORD} \
+-E output.elasticsearch.ssl.certificate_authorities=["/etc/filebeat/certs/root-ca.pem"] \
+-E output.elasticsearch.ssl.certificate="/etc/filebeat/certs/es_http.pem" \
+-E output.elasticsearch.ssl.key="/etc/filebeat/certs/es_http.key" \
+-E setup.template.settings.index.number_of_routing_shards=${FB_TMPL_ROUT_SHARDS} \
+-E setup.template.settings.index.number_of_shards=${FB_TMPL_SHARDS} \
+-E setup.template.settings.index.number_of_replicas=${FB_TMPL_REPLICAS} \
+-E setup.template.overwrite=true
+````
