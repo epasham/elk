@@ -1,0 +1,19 @@
+# This is a configuration snippet for the node es
+# This snippet needs to be inserted into the file config/elasticsearch.yml of the respective node.
+# If the config file already contains SearchGuard configuration, this needs to be replaced.
+# Furthermore, you need to copy the files referenced below into the same directory.
+# Please refer to http://docs.search-guard.com/latest/configuring-tls for further configuration of your installation.
+
+
+searchguard.ssl.transport.pemcert_filepath: es.pem
+searchguard.ssl.transport.pemkey_filepath: es.key
+searchguard.ssl.transport.pemtrustedcas_filepath: root-ca.pem
+searchguard.ssl.transport.enforce_hostname_verification: false
+searchguard.ssl.transport.resolve_hostname: false
+searchguard.ssl.http.enabled: true
+searchguard.ssl.http.pemcert_filepath: es_http.pem
+searchguard.ssl.http.pemkey_filepath: es_http.key
+searchguard.ssl.http.pemtrustedcas_filepath: root-ca.pem
+searchguard.authcz.admin_dn:
+- CN=sgadmin,OU=DEVOPS,O=SAP,DC=elk,DC=com
+searchguard.cert.oid: 1.2.3.4.5.5

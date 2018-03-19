@@ -1,0 +1,34 @@
+filebeat.prospectors:
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/available.log
+  tags: ["hana-available"]
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/indexserver*.trc
+  tags: ["hana-indexserver","hana-srv"]
+  exclude_files: ['\.executed_statements','\.loads','\.unloads']
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/xsengine*.trc
+  tags: ["hana-xsengine","hana-srv"]
+  exclude_files: ['\.executed_statements']
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/webdispatcher*.trc
+  tags: ["hana-webdispatcher","hana-srv"]
+  exclude_files: ['\.dev']
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+output.logstash:
+  hosts: ["10.180.1.83:5044", "10.180.1.84:5044"]
+  loadbalance: true
+  ssl.certificate_authorities: ["/etc/filebeat/certs/root-ca.pem"]
+  ssl.certificate: "/etc/filebeat/certs/es_http.pem"
+  ssl.key: "/etc/filebeat/certs/es_http.key"
+
