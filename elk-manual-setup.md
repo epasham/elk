@@ -403,7 +403,7 @@ sudo /bin/systemctl restart filebeat.service
 ### 6 验证elk-sg
 6.1 登陆kibana,默认admin/admin
 
-<img src="https://github.com/facewy/elk/raw/master/screenshots/kibana1.PNG" width = "50%" height = "50%" alt="kibana login" align=center />
+<img src="https://github.com/facewy/elk/raw/master/screenshots/login1.PNG" width = "50%" height = "50%" alt="kibana login" align=center />
 
 6.2 查看filebeat template
 
