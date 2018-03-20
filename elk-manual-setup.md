@@ -401,10 +401,19 @@ sudo /bin/systemctl restart filebeat.service
 ````
 
 ### 6 验证elk-sg
-6.1 登陆kibana
+6.1 登陆kibana,默认admin/admin
 
 <img src="https://github.com/facewy/elk/raw/master/screenshots/kibana1.PNG" width = "50%" height = "50%" alt="kibana login" align=center />
 
 6.2 查看filebeat template
 
+<img src="https://github.com/facewy/elk/raw/master/screenshots/tmpl1.PNG" width = "50%" height = "50%" alt="index" align=center />
+
+
 6.3 查看发现的日志
+
+<img src="https://github.com/facewy/elk/raw/master/screenshots/discover1.PNG" width = "50%" height = "50%" alt="logs" align=center />
+
+6.4 创建的dashboard
+
+<img src="https://github.com/facewy/elk/raw/master/screenshots/dash1.PNG" width = "50%" height = "50%" alt="kibana dashboard" align=center />
