@@ -417,3 +417,114 @@ sudo /bin/systemctl restart filebeat.service
 6.4 创建的dashboard
 
 <img src="https://github.com/facewy/elk/raw/master/screenshots/dash1.png" width = "50%" height = "50%" alt="kibana dashboard" align=center />
+
+
+## 基于x-pack的elk安装
+### 1 证书使用上面elk-sg中生成的证书，复制到与上相同的目录备用
+````
+client-certificates.readme           es_http.key  es_http-pk8.key  es.pem      root-ca.key  sgadmin.key  sgadmin-pk8.key
+es_elasticsearch_config_snippet.yml  es_http.pem  es.key           es-pk8.key  root-ca.pem  sgadmin.pem
+````
+### 2 安装elasticsearch
+2.1 安装java环境：`sudo yum install java`
+
+2.2 使用rpm包格式安装elasticsearch：
+````
+ELK_VERSION=6.2.2
+ES_PKG_URL=https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ELK_VERSION}.rpm
+sudo rpm --install ${ES_PKG_URL}
+````
+2.3 安装es-xpack插件
+````
+sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install x-pack -b
+````
+2.4 提供es配置文件: /etc/elasticsearch/elasticsearch.yml
+````
+cluster.name: my-elk
+cluster.routing.allocation.enable: all
+cluster.routing.allocation.node_concurrent_incoming_recoveries: 2
+cluster.routing.allocation.node_concurrent_outgoing_recoveries: 2
+cluster.routing.allocation.node_initial_primaries_recoveries: 4
+cluster.routing.allocation.same_shard.host: false
+cluster.routing.rebalance.enable: all
+cluster.routing.allocation.cluster_concurrent_rebalance: 2
+node.name: node0
+node.master: true
+node.data: true
+node.ingest: true
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+bootstrap.memory_lock: false
+network.host: 0.0.0.0
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["10.180.1.83","10.180.1.84","10.180.1.85"]
+discovery.zen.ping_timeout: 5s
+# Prevent the "split brain" by configuring the majority of nodes (total number of master-eligible nodes / 2 + 1):
+discovery.zen.minimum_master_nodes: 2
+discovery.zen.no_master_block: all
+gateway.recover_after_nodes: 3
+
+action.auto_create_index: true
+xpack.security.enabled: true
+xpack.ssl.verification_mode: certificate
+
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.key: /etc/elasticsearch/certs/es.key
+xpack.security.transport.ssl.certificate: /etc/elasticsearch/certs/es.pem
+xpack.security.transport.ssl.certificate_authorities: ["/etc/elasticsearch/certs/root-ca.pem"]
+
+xpack.security.http.ssl.enabled: true
+xpack.security.http.ssl.key: /etc/elasticsearch/certs/es_http.key
+xpack.security.http.ssl.certificate: /etc/elasticsearch/certs/es_http.pem
+xpack.security.http.ssl.certificate_authorities: ["/etc/elasticsearch/certs/root-ca.pem"]
+````
+x-pack会自动创建一系列indices，在elasticsearch.yml中配置允许自动创建所有indices
+`action.auto_create_index: true`
+
+2.5 启用es
+````
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable elasticsearch.service
+sudo systemctl restart elasticsearch.service
+````
+以上操作在3台es node上执行，注意修改node.name
+
+2.6 set-password
+````
+sudo /usr/share/elasticsearch/bin/x-pack/setup-passwords auto -E xpack.security.http.ssl.client_authentication=none
+````
+或者使用交互式输入密码，这里使用auto，默认会为elstic logstash_system kibana 3个用户生成随机密码,可以使用api修改密码：
+````
+curl -XPOST -k -u elastic:${elastic_rand_password} "${ES_API_URL}/_xpack/security/user/elastic/_password?pretty" -H "Content-Type: application/json" -d"{\"password\": \"${ES_NEW_PASSWORD}\"}"
+curl -XPOST -k -u logstash_system:${logstash_system_rand_password} "${ES_API_URL}/_xpack/security/user/logstash_system/_password?pretty" -H "Content-Type: application/json" -d"{\"password\": \"${LG_NEW_PASSWORD}\"}"
+curl -XPOST -k -u kibana:${kibana_rand_password} "${ES_API_URL}/_xpack/security/user/kibana/_password?pretty" -H "Content-Type: application/json" -d"{\"password\": \"${KB_NEW_PASSWORD}\"}"
+````
+这里密码修改为以下：
+````
+Elastic：	elastic/elasticPass   		   (superuser)
+Logstash:	logstash_system/logstashPass     (monitor)
+Kibana:	  kibana/kibanaPass  			  (monitor, manage_index_templates)
+````
+2.7 查看es cluster状态
+````
+ES_API_URL=https://10.180.1.83:9200
+curl -XGET "${ES_API_URL}/_cat/health?v&pretty" -u elastic:elasticPass -k
+epoch      timestamp cluster status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1521516342 03:25:42  my-elk  green           3         3     11   5    0    0        0             0                  -                100.0%
+````
+
+### 3 安装kibana
+3.1 安装kibana rpm 包
+````
+ELK_VERSION=6.2.2
+KB_PKG_URL=https://artifacts.elastic.co/downloads/kibana/kibana-${ELK_VERSION}-x86_64.rpm
+sudo rpm --install ${KB_PKG_URL}
+````
+3.2 安装kibana x-xpack插件
+````
+sudo /usr/share/kibana/bin/kibana-plugin install x-pack -q
+````
+3.3 提供kibana配置文件:/etc/kibana/kibana.yml配置文件
+````
+
+````
