@@ -416,4 +416,4 @@ sudo /bin/systemctl restart filebeat.service
 
 6.4 创建的dashboard
 
-<img src="https://github.com/facewy/elk/raw/master/screenshots/dash1.PNG" width = "50%" height = "50%" alt="kibana dashboard" align=center />
+<img src="https://github.com/facewy/elk/raw/master/screenshots/dash1.png" width = "50%" height = "50%" alt="kibana dashboard" align=center />
