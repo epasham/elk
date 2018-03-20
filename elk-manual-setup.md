@@ -332,7 +332,7 @@ sudo rpm --install ${FB_PKG_URL}
 ````
 5.2 es启用filebeat的template
 
-filebeat通过logstash输入解析日志到es,需要在es启用filebeat的template, shards需要在此时指定，index生成后不能再修改shards，除非所有数据reshared
+filebeat通过logstash输入解析日志到es,需要在es启用filebeat的template, shards需要在此时指定，index生成后不能再修改shards，除非所有数据re-shared
 ````
 ES_API_URL="https://10.180.1.83:9200"
 SG_ES_USERNAME="admin"
@@ -355,3 +355,54 @@ sudo filebeat setup --template \
 -E setup.template.settings.index.number_of_replicas=${FB_TMPL_REPLICAS} \
 -E setup.template.overwrite=true
 ````
+*TIPS* ：如果将es看作是一个数据库，那么按照对数据库的理解，es在存储数据时首先需要创建表，然后存储数据，那么index相当于表的实例，多个index组成indices, field则是表的列名。那表的列是如何定义的呢？es如何知道哪些列是什么数据类型呢？这就需要使用mapping定义，另外还需要定义数据的分片(number_of_shards),以及数据的备份数(number_of_replicas)等，这些mapping,setting等是es根据template创建的。Es默认提供logstash和kibana的template，如果使用filebeat传入logstash再传入es，那么需要定义filebeat适用的template。上面的设置是使用的默认logstash template，默认的shards是5，replicas是1。如果需要将shard调整其他值，那么需要在filebeat的template中配置并在es中指定使用此template， replias可以可以在创建后修改，但数量应小于node数量，否则会出现replias没有节点可以指派，,注意：要使用es中的template，那在指定index时需要包含在template名内，例如template名为filebeat-6.2.2，如果要使用该template，index应指定为filebeat-6.2.2-*
+
+5.3 提供filebeat.yml配置文件:/etc/filebeat/filebeat.yml
+````
+filebeat.prospectors:
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/available.log
+  tags: ["hana-available"]
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/indexserver*.trc
+  tags: ["hana-indexserver","hana-srv"]
+  exclude_files: ['\.executed_statements','\.loads','\.unloads']
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/xsengine*.trc
+  tags: ["hana-xsengine","hana-srv"]
+  exclude_files: ['\.executed_statements']
+- type: log
+  enabled: true
+  paths:
+    - /usr/sap/SP1/HDB00/sportsone-test/trace/webdispatcher*.trc
+  tags: ["hana-webdispatcher","hana-srv"]
+  exclude_files: ['\.dev']
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+output.logstash:
+  hosts: ["10.180.1.83:5044", "10.180.1.84:5044"]
+  loadbalance: true
+  ssl.certificate_authorities: ["/etc/filebeat/certs/root-ca.pem"]
+  ssl.certificate: "/etc/filebeat/certs/es_http.pem"
+  ssl.key: "/etc/filebeat/certs/es_http.key"
+````
+5.4 启动filebeat
+````
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable filebeat.service
+sudo /bin/systemctl restart filebeat.service
+````
+
+### 6 验证elk-sg
+6.1 登陆kibana
+
+6.2 查看filebeat template
+
+6.3 查看发现的日志
