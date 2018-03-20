@@ -402,7 +402,7 @@ sudo /bin/systemctl restart filebeat.service
 
 ### 6 验证elk-sg
 6.1 登陆kibana
-
+![login](https://github.com/facewy/elk/raw/master/screenshots/kibana1.png)
 6.2 查看filebeat template
 
 6.3 查看发现的日志
