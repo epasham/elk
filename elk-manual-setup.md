@@ -636,7 +636,7 @@ output {
 
 - 创建一个logstash_writer角色和logstash_internal用户可以使用kibana management：
 
-
+<img src="https://github.com/facewy/elk/raw/master/screenshots/xcreateUser1.PNG" width = "50%" height = "50%" alt="kibana login" align=center />
 - 使用api创建：https://www.elastic.co/guide/en/logstash/6.2/ls-security.html
 
 4.5 启动logstash
@@ -649,6 +649,10 @@ sudo systemctl restart logstash.service
 与上面elk-sg filebeat安装方式相同...略
 
 ### 6 验证elk-xpack
-6.1 kibana login1
+6.1 kibana login
+
+<img src="https://github.com/facewy/elk/raw/master/screenshots/xlogin1.PNG" width = "50%" height = "50%" alt="kibana login" align=center />
 
 6.2 monitor可以监控es kibana logstash 状态
+
+<img src="https://github.com/facewy/elk/raw/master/screenshots/xelkStatus1.PNG" width = "50%" height = "50%" alt="kibana login" align=center />
