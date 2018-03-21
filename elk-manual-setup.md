@@ -11,7 +11,7 @@ Filebeat -> logstash -> elasticearch -> kibana， 使用searchguard或者x-pack�
 |10.180.1.84| |Y|Y||
 |10.180.1.85| ||Y|Y|
 ---
-## 基于searchguard安装
+## 基于searchguard安装 elk-sg
 ### 1. 生成自签名证书
 #### 使用sgtlstool.sh生成自签名证书 [offline tls tool](https://docs.search-guard.com/latest/offline-tls-tool)
 1.1 sgtlstool.sh配置文件elk.yml:
@@ -313,7 +313,7 @@ output {
   }
 }
 ````
-2台logstash使用相同配置
+2台logstash使用相同配置,除了node.name, 注意logstash ssl key只能使用pkcs8格式。`/etc/logstash/certs/es_http-pk8.key`
 
 4.3 启动logstash
 ````
@@ -419,7 +419,9 @@ sudo /bin/systemctl restart filebeat.service
 <img src="https://github.com/facewy/elk/raw/master/screenshots/dash1.png" width = "50%" height = "50%" alt="kibana dashboard" align=center />
 
 
-## 基于x-pack的elk安装
+
+
+## 基于x-pack的elk安装 elk-xpack
 ### 1 证书使用上面elk-sg中生成的证书，复制到与上相同的目录备用
 ````
 client-certificates.readme           es_http.key  es_http-pk8.key  es.pem      root-ca.key  sgadmin.key  sgadmin-pk8.key
@@ -526,5 +528,127 @@ sudo /usr/share/kibana/bin/kibana-plugin install x-pack -q
 ````
 3.3 提供kibana配置文件:/etc/kibana/kibana.yml配置文件
 ````
-
+server.port: 5601
+server.host: 0.0.0.0
+server.name: "elk"
+elasticsearch.url: "https://10.180.1.83:9200"
+kibana.defaultAppId: "home"
+elasticsearch.username: kibana
+elasticsearch.password: "kibanaPass"
+xpack.security.enabled: true
+server.ssl.enabled: true
+server.ssl.certificate: /etc/kibana/certs/es_http.pem
+server.ssl.key: /etc/kibana/certs/es_http.key
+elasticsearch.ssl.certificate: /etc/kibana/certs/es_http.pem
+elasticsearch.ssl.key: /etc/kibana/certs/es_http.key
+elasticsearch.ssl.certificateAuthorities: [ "/etc/kibana/certs/root-ca.pem" ]
+elasticsearch.ssl.verificationMode: none
 ````
+3.4 启动kibana
+````
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable kibana.service
+sudo systemctl restart kibana.service
+````
+### 4 安装logstash
+4.1 安装logstash rpm 包
+````
+ELK_VERSION=6.2.2
+LG_PKG_URL="https://artifacts.elastic.co/downloads/logstash/logstash-${ELK_VERSION}.rpm"
+sudo rpm --install ${LG_PKG_URL}
+````
+4.2 安装logstash x-pack插件
+````
+sudo /usr/share/logstash/bin/logstash-plugin install x-pack --batch
+````
+4.3 配置etc/logstash/logstash.yml, x-pack启用monitor,配置后kibana页面中monitor可以监控到logstash状态
+````
+node.name: "logstash0"
+path.data: "/var/lib/logstash"
+path.config: /etc/logstash/conf.d/*.conf
+http.host: 0.0.0.0
+http.port: 9600-9700
+xpack.monitoring.elasticsearch.username: logstash_system
+xpack.monitoring.elasticsearch.password: "logstashPass"
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.url: ["https://10.180.1.83:9200","https://10.180.1.84:9200","https://10.180.1.85:9200"]
+xpack.monitoring.elasticsearch.ssl.ca: /etc/logstash/certs/root-ca.pem
+path.logs: /var/log/logstash
+````
+*NOTE* : 这里的xpack.monitoring.elasticsearch.username使用上面es创建的3个用户中的logstash_system，这个用户仅具有monitor权限。
+
+4.4  提供logstash pipeline配置文件：/etc/logstash/conf.d/beat-input.conf
+````
+input {
+  beats {
+    port => 5044
+    ssl => true
+    ssl_certificate => "/etc/logstash/certs/es_http.pem"
+    ssl_key => "/etc/logstash/certs/es_http-pk8.key"
+    ssl_certificate_authorities => "/etc/logstash/certs/root-ca.pem"
+    ssl_verify_mode => none
+  }
+}
+
+filter {
+  if "hana-srv" in [tags] {
+    grok {
+      match => { "message" => "%{TIMESTAMP_ISO8601:HANAtimestamp}\s%{WORD:LOGLEVEL}\s%{WORD:ACTION}\s+%{GREEDYDATA:CONTENT}" }
+    }
+  }
+
+  if "hana-available" in [tags] {
+    grok {
+      match => { "message" => "%{WORD:HANASTATUS}\s+%{DATESTAMP:CHANGETIME}\s-\s%{DATESTAMP}" }
+    }
+  }
+}
+
+output {
+  if "hana-srv" in [tags] {
+    elasticsearch {
+      hosts => ["10.180.1.83:9200", "10.180.1.84:9200", "10.180.1.85:9200"]
+      user => elastic
+      password => "elasticPass"
+      ssl => true
+      ssl_certificate_verification => true
+      cacert => "/etc/logstash/certs/root-ca.pem"
+      manage_template => false
+      index => "filebeat-6.2.2-hana-services-%{+YYYY.MM.dd}"
+    }
+  }
+
+  if "hana-available" in [tags] {
+    elasticsearch {
+      hosts => ["10.180.1.83:9200", "10.180.1.84:9200", "10.180.1.85:9200"]
+      user => elastic
+      password => "elasticPass"
+      ssl => true
+      ssl_certificate_verification => true
+      cacert => "/etc/logstash/certs/root-ca.pem"
+      manage_template => false
+      index => "filebeat-6.2.2-hana-available-%{+YYYY.MM.dd}"
+    }
+  }
+}
+````
+2台logstash均使用相同配置，除了node.name, 注意logstash ssl key只能使用pkcs8格式。`/etc/logstash/certs/es_http-pk8.key`, `user => elastic`这里的user需要具备monitor和manage_index_templates的cluster权限和privileges为write,delete,create_index，不能使用logstash_system，这里偷懒直接用了superuser。
+
+- 创建一个logstash_writer角色和logstash_internal用户可以使用kibana management：
+
+
+- 使用api创建：https://www.elastic.co/guide/en/logstash/6.2/ls-security.html
+
+4.5 启动logstash
+````
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable logstash.service
+sudo systemctl restart logstash.service
+````
+### 5 filebeat安装
+与上面elk-sg filebeat安装方式相同...略
+
+### 6 验证elk-xpack
+6.1 kibana login1
+
+6.2 monitor可以监控es kibana logstash 状态
